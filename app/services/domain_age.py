@@ -21,10 +21,13 @@ NEW_DOMAIN_THRESHOLD_DAYS = 90
 
 
 def _coerce_date(value):
-    """python-whois sometimes returns a list of dates; take the earliest."""
-    if isinstance(value, list):
-        value = min(v for v in value if v is not None) if value else None
-    return value
+    """Normalize WHOIS creation dates before selecting the earliest."""
+    values = value if isinstance(value, (list, tuple)) else (value,)
+    dates = (
+        d.replace(tzinfo=timezone.utc) if d.utcoffset() is None else d.astimezone(timezone.utc)
+        for d in values if isinstance(d, datetime)
+    )
+    return min(dates, default=None)
 
 
 def check_domain_age(registrable_domain: str) -> dict | None:
@@ -37,8 +40,6 @@ def check_domain_age(registrable_domain: str) -> dict | None:
         created = _coerce_date(w.creation_date)
         if created is None:
             return None
-        if created.tzinfo is None:
-            created = created.replace(tzinfo=timezone.utc)
 
         age_days = (datetime.now(timezone.utc) - created).days
         if age_days < 0:
